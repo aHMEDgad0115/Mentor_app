@@ -1,6 +1,5 @@
 from rest_framework import  serializers
-from mentor_api.models import User, Mentor, Student,Session,Request
-
+from mentor_api.models import User, Mentor, Student,Session,Request,Review
 
 
 class UserSerializers(serializers.ModelSerializer):
@@ -13,7 +12,7 @@ class MentorSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Mentor
-        fields = ['user', 'track']
+        fields = ['user','id']
 
     def create(self, validated_data):
         user_data = validated_data.pop('user')
@@ -26,34 +25,20 @@ class StudentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Student
-        fields = ['user']
+        fields = ['user','id']
 
     def create(self, validated_data):
         user_data = validated_data.pop('user')
         user = User.objects.create(**user_data)
         student = Student.objects.create(user=user, **validated_data)
         return student
-
-class RequestSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Request
-        fields = ['id', 'mentor', 'student', 'accepted']
-
-class SessionSerializer(serializers.ModelSerializer):
-    mentor = MentorSerializer()
-    student = StudentSerializer()
-    request = RequestSerializer()
-
-    class Meta:
-        model = Session
-        fields = ['mentor', 'student', 'request','start_time','duration','zoom_link']
 class MentorSignupSerializer(serializers.ModelSerializer):
     password2 = serializers.CharField(style={"input_type":"password"},write_only=True)
     class Meta:
         model =User
-        fields =['username','email','password','password2']
+        fields =['username','email','password','password2','first_name','last_name']
         extra_kwargs={
-            'password':{'write_only':True}
+            'password':{'style':{"input_type":"password"},'write_only':True}
         }
 
     def save(self,**kwargs):
@@ -76,9 +61,9 @@ class StudentSignupSerializer(serializers.ModelSerializer):
     password2 = serializers.CharField(style={"input_type":"password"},write_only=True)
     class Meta:
         model =User
-        fields =['username','email','password','password2']
+        fields =['username','email','password','password2','first_name','last_name']
         extra_kwargs={
-            'password':{'write_only':True}
+            'password':{'style':{"input_type":"password"},'write_only':True}
         }
 
     def save(self,**kwargs):
@@ -138,3 +123,32 @@ class UpdateUserSerializer(serializers.ModelSerializer):
 
         return instance
 
+
+class RequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Request
+        fields = ['id', 'mentor', 'student', 'accepted']
+
+class SessionSerializer(serializers.ModelSerializer):
+    mentor = MentorSerializer()
+    student = StudentSerializer()
+    request = RequestSerializer()
+
+    class Meta:
+        model = Session
+        fields = ['mentor', 'student', 'request','start_time','duration','zoom_link']
+
+
+
+
+
+class ReviewSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Review
+        fields = ['student', 'mentor', 'rating', 'feedback', 'created_at']
+
+
+
+class CashTransferSerializer(serializers.Serializer):
+    mentor_id = serializers.IntegerField()
+    price = serializers.IntegerField()

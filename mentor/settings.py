@@ -24,9 +24,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = 'django-insecure-kq)p788@ku_%i5ycc5h7gzv$+fivm3a*y^j5qo#)(rc0!4i+xc'
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = False
+DEBUG = True
 
-ALLOWED_HOSTS = ['localhost','ahmedgad01154.pythonanywhere.com']
+ALLOWED_HOSTS = ['*']
 
 
 # Application definition
@@ -111,6 +111,21 @@ REST_FRAMEWORK = {
     ]
 }
 
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'DEBUG',
+    },
+}
+
+
 AUTH_USER_MODEL="mentor_api.User"
 ACCOUNT_UNIQUE_EMAIL = True
 # Internationalization
@@ -131,6 +146,8 @@ USE_TZ = True
 STATIC_URL = 'static/'
 STATIC_ROOT =os.path.join(BASE_DIR,'static')
 
+MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_URL = '/media/'
 # Default primary key field type
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 

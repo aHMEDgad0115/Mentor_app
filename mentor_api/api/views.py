@@ -5,9 +5,14 @@ from .serializers import UpdateUserSerializer,UserSerializers,MentorSignupSerial
 from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.views import APIView
 from .permissions import IsStudentUser,IsMentorUser
-from mentor_api.models import User,Mentor,Student,Session,Request
-from .serializers import MentorSerializer,StudentSerializer,RequestSerializer,SessionSerializer
+from mentor_api.models import User,Mentor,Student,Session,Request,Review
+from .serializers import CashTransferSerializer,MentorSerializer,StudentSerializer,RequestSerializer,SessionSerializer
+from django.shortcuts import get_object_or_404
+from .serializers import ReviewSerializer
+from rest_framework.decorators import api_view
 
+import logging
+logger = logging.getLogger(__name__)
 
 
 
@@ -60,7 +65,7 @@ class StudentSignupView(generics.GenericAPIView):
         return Response({
             'user':UserSerializers(user,context= self.get_serializer_context()).data,
             'token':Token.objects.get(user= user).key,
-            'message':'Account Create Successfuly'
+            'message':'Account Created Successfuly'
         })
 
 
@@ -98,56 +103,51 @@ class UpdateProfileView(generics.UpdateAPIView):
 
 
 class MentorSearchView(generics.ListAPIView):
-    serializer_class = MentorSerializer
-
+    serializer_class = UserSerializers
     def get_queryset(self):
-        queryset = Mentor.objects.all()
+        print("get_queryset web")
+        queryset = User.objects.filter(is_mentor=True)
         track = self.request.query_params.get('track')
-        name = self.request.query_params.get('name')
+        username = self.request.query_params.get('username')
 
         if track:
             queryset = queryset.filter(track=track)
-        if name:
-            queryset = queryset.filter(name__icontains=name)
+        if username:
+            queryset = queryset.filter(username=username)
 
         return queryset
     
 
-
+############################################################################################
 class StudentHomePageView(generics.ListAPIView):
-    serializer_class = MentorSerializer
+    serializer_class = UserSerializers
 
     def get_queryset(self):
-        return Mentor.objects.all()
+        
+        queryset = User.objects.filter(is_mentor=True)
+        return queryset
 
-class MyCreatedSessionsView(generics.ListAPIView):
-    serializer_class = SessionSerializer
-    permission_classes=[permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        return Session.objects.filter(student=user.student)
-
-class MyRequestedToMentorsView(generics.ListAPIView):
-    serializer_class = RequestSerializer
-    permission_classes=[permissions.IsAuthenticated]
-
-    def get_queryset(self):
-        user = self.request.user
-        return Request.objects.filter(student=user.student)
 
 class RequestMentorshipView(generics.CreateAPIView):
     serializer_class = RequestSerializer
     permission_classes=[permissions.IsAuthenticated]
 
     def create(self, request, *args, **kwargs):
-        student = request.user.student
+        #logger.debug(request.data)
+        student = Student.objects.get(user=request.user)
         mentor = Mentor.objects.get(pk=request.data['mentor_id'])
-        
         request_obj = Request(student=student, mentor=mentor)
         request_obj.save()
 
         return Response(status=status.HTTP_201_CREATED)
+
+class MyRequestedToMentorsView(generics.ListAPIView):
+    serializer_class = RequestSerializer
+    permission_classes=[permissions.IsAuthenticated]
+ 
+    def get_queryset(self):
+        user = Student.objects.get(user=self.request.user)
+        return Request.objects.filter(student=user)
 
 class CancelRequestView(generics.DestroyAPIView):
     queryset = Request.objects.all()
@@ -155,24 +155,23 @@ class CancelRequestView(generics.DestroyAPIView):
     permission_classes=[permissions.IsAuthenticated]
 
 
-
-
-
-class MyCreatedSessionsView(generics.ListAPIView):
+class StudentCreatedSessionsView(generics.ListAPIView):
     serializer_class = SessionSerializer
     permission_classes=[permissions.IsAuthenticated]
 
     def get_queryset(self):
-        user = self.request.user
-        return Session.objects.filter(mentor=user.mentor)
+        student = Student.objects.get(user = self.request.user)
+        return Session.objects.filter(student = student)
+
+############################################################################################
 
 class RequestedFromStudentsToMeView(generics.ListAPIView):
     serializer_class = RequestSerializer
     permission_classes=[permissions.IsAuthenticated]
 
     def get_queryset(self):
-        user = self.request.user
-        return Request.objects.filter(mentor=user.mentor)
+        mentor =  Student.objects.get(user=self.request.user)
+        return Request.objects.filter(mentor)
 
 class AcceptRequestView(generics.UpdateAPIView):
     queryset = Request.objects.all()
@@ -195,6 +194,15 @@ class CancelMentorshipView(generics.DestroyAPIView):
     permission_classes=[permissions.IsAuthenticated]
 
 
+
+class MentorCreatedSessionsView(generics.ListAPIView):
+    serializer_class = SessionSerializer
+    permission_classes=[permissions.IsAuthenticated]
+
+    def get_queryset(self):
+        mentor =  Mentor.objects.get( user = self.request.user)
+        return Session.objects.filter(mentor = mentor)
+
 class UpdateSessionView(generics.UpdateAPIView):
     queryset = Session.objects.all()
     serializer_class = SessionSerializer
@@ -202,5 +210,84 @@ class UpdateSessionView(generics.UpdateAPIView):
 
     lookup_field = 'pk'
 
-    def perform_update(self, serializer):
-        instance = serializer.save()
+    def put(self, request, *args, **kwargs):
+        session_id = kwargs['session_id']
+        session = get_object_or_404(self.queryset, id=session_id)
+        session.start_time = request.data['start_time']
+        session.duration = request.data['duration']
+        session.zoom_link = request.data['zoom_link']
+
+        session.save()
+
+        serializer = self.get_serializer(session)
+        return Response(serializer.data, status=status.HTTP_200_OK)
+
+   
+
+
+
+
+
+##########################################################################################
+
+class ReviewCreateView(generics.CreateAPIView):
+    serializer_class = ReviewSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+    
+
+
+
+class MentorReviewsView(generics.ListAPIView):
+    serializer_class = ReviewSerializer
+
+    def get_queryset(self):
+        mentor_id = self.kwargs['mentor_id']  
+        return Review.objects.filter(mentor=mentor_id)
+    
+
+
+
+
+
+
+
+
+###########################################################################################
+
+class CashTransferView(generics.CreateAPIView):
+    serializer_class = CashTransferSerializer
+
+    def create(self, request, *args, **kwargs):
+        student = self.request.user
+        mentor_id = request.data.get('mentor_id')
+        price = request.data.get('price')
+
+        try:
+            mentor = User.objects.get(id=mentor_id, is_mentor=True)
+        except User.DoesNotExist:
+            return Response({'error': 'Mentor not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        if student.cash < price:
+            return Response({'error': 'Insufficient Cash'}, status=status.HTTP_400_BAD_REQUEST)
+
+        student.cash -= price
+        mentor.cash += price
+
+        student.save()
+        mentor.save()
+
+        return Response({'message': 'Money transferred successfully'}, status=status.HTTP_200_OK)
+    
+
+
+@api_view(['GET'])
+def get_user_Cash(request):
+    user = request.user
+    cash = user.cash
+    return Response({'Cash': cash}, status=status.HTTP_200_OK)
